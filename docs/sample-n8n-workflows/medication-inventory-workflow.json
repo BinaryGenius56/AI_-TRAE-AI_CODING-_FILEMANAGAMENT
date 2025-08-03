@@ -1,0 +1,302 @@
+{
+  "name": "Medication Inventory Management",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "medication/scan",
+        "options": {}
+      },
+      "name": "Barcode Scan Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse the barcode data\nconst barcodeData = $input.item.json.barcodeData;\nconst hospitalId = $input.item.json.hospitalId;\n\n// Extract medication information\nconst medicationCode = barcodeData.substring(0, 10);\nconst batchNumber = barcodeData.substring(10, 20);\nconst expiryDate = barcodeData.substring(20, 28);\n\nreturn {\n  medicationCode,\n  batchNumber,\n  expiryDate,\n  hospitalId,\n  scanTime: new Date().toISOString()\n};"
+      },
+      "name": "Parse Barcode Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.HOSPITAL_API_URL}}/api/v1/medications/{{$input.item.json.medicationCode}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "name": "Get Medication Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.scanType}}",
+              "operation": "equal",
+              "value2": "checkout"
+            }
+          ]
+        }
+      },
+      "name": "Is Checkout?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.HOSPITAL_API_URL}}/api/v1/inventory/checkout",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {},
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "medicationCode",
+              "value": "={{$json.medicationCode}}"
+            },
+            {
+              "name": "quantity",
+              "value": "={{$json.quantity || 1}}"
+            },
+            {
+              "name": "batchNumber",
+              "value": "={{$json.batchNumber}}"
+            },
+            {
+              "name": "hospitalId",
+              "value": "={{$json.hospitalId}}"
+            },
+            {
+              "name": "userId",
+              "value": "={{$json.userId}}"
+            },
+            {
+              "name": "patientId",
+              "value": "={{$json.patientId}}"
+            }
+          ]
+        }
+      },
+      "name": "Checkout Medication",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.HOSPITAL_API_URL}}/api/v1/inventory/checkin",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {},
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "medicationCode",
+              "value": "={{$json.medicationCode}}"
+            },
+            {
+              "name": "quantity",
+              "value": "={{$json.quantity || 1}}"
+            },
+            {
+              "name": "batchNumber",
+              "value": "={{$json.batchNumber}}"
+            },
+            {
+              "name": "expiryDate",
+              "value": "={{$json.expiryDate}}"
+            },
+            {
+              "name": "hospitalId",
+              "value": "={{$json.hospitalId}}"
+            },
+            {
+              "name": "userId",
+              "value": "={{$json.userId}}"
+            }
+          ]
+        }
+      },
+      "name": "Checkin Medication",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.currentStock}}",
+              "operation": "smaller",
+              "value2": "={{$json.minimumStockLevel}}"
+            }
+          ]
+        }
+      },
+      "name": "Check Stock Level",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "toRecipients": "={{$env.PHARMACY_EMAIL}}",
+        "subject": "Low Stock Alert: {{$json.medicationName}}",
+        "text": "=The medication {{$json.medicationName}} (Code: {{$json.medicationCode}}) is running low on stock.\n\nCurrent stock level: {{$json.currentStock}}\nMinimum stock level: {{$json.minimumStockLevel}}\n\nPlease reorder this medication soon.\n\nHospital: {{$json.hospitalName}}\nDepartment: {{$json.departmentName}}\n\nThis is an automated message from the Hospital Network Management System."
+      },
+      "name": "Send Low Stock Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.HOSPITAL_API_URL}}/api/v1/audit/log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {},
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "eventType",
+              "value": "INVENTORY_UPDATE"
+            },
+            {
+              "name": "resourceType",
+              "value": "MEDICATION"
+            },
+            {
+              "name": "resourceId",
+              "value": "={{$json.medicationCode}}"
+            },
+            {
+              "name": "action",
+              "value": "={{$json.scanType === 'checkout' ? 'CHECKOUT' : 'CHECKIN'}}"
+            },
+            {
+              "name": "userId",
+              "value": "={{$json.userId}}"
+            },
+            {
+              "name": "hospitalId",
+              "value": "={{$json.hospitalId}}"
+            },
+            {
+              "name": "details",
+              "value": "={{JSON.stringify({\n                medicationName: $json.medicationName,\n                quantity: $json.quantity || 1,\n                batchNumber: $json.batchNumber,\n                expiryDate: $json.expiryDate,\n                currentStock: $json.currentStock\n              })}}"
+            }
+          ]
+        }
+      },
+      "name": "Log Audit Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1450, 400]
+    }
+  ],
+  "connections": {
+    "Barcode Scan Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Barcode Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Barcode Data": {
+      "main": [
+        [
+          {
+            "node": "Get Medication Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Medication Details": {
+      "main": [
+        [
+          {
+            "node": "Is Checkout?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Checkout?": {
+      "main": [
+        [
+          {
+            "node": "Checkout Medication",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Checkin Medication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checkout Medication": {
+      "main": [
+        [
+          {
+            "node": "Check Stock Level",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checkin Medication": {
+      "main": [
+        [
+          {
+            "node": "Check Stock Level",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Stock Level": {
+      "main": [
+        [
+          {
+            "node": "Send Low Stock Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Audit Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

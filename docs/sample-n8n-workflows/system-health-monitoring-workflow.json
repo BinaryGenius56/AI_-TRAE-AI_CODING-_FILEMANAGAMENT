@@ -1,0 +1,345 @@
+{
+  "name": "Hospital System Health Monitoring",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get environment variables for the hospital network\nconst hospitals = $env.HOSPITAL_ENDPOINTS.split(',');\n\n// Create an array of items, one for each hospital endpoint to check\nconst items = [];\n\nfor (const hospital of hospitals) {\n  const [hospitalId, baseUrl] = hospital.split('|');\n  \n  // Add endpoints to check for each hospital\n  items.push({\n    json: {\n      hospitalId,\n      name: 'API Health',\n      url: `${baseUrl}/api/v1/health`,\n      expectedStatus: 200,\n      timeout: 5000,\n      type: 'api'\n    }\n  });\n  \n  items.push({\n    json: {\n      hospitalId,\n      name: 'FHIR Endpoint',\n      url: `${baseUrl}/api/v1/fhir/metadata`,\n      expectedStatus: 200,\n      timeout: 5000,\n      type: 'fhir'\n    }\n  });\n  \n  items.push({\n    json: {\n      hospitalId,\n      name: 'DICOM Service',\n      url: `${baseUrl}/api/v1/dicom/status`,\n      expectedStatus: 200,\n      timeout: 5000,\n      type: 'dicom'\n    }\n  });\n  \n  items.push({\n    json: {\n      hospitalId,\n      name: 'Database Connection',\n      url: `${baseUrl}/api/v1/system/database/status`,\n      expectedStatus: 200,\n      timeout: 5000,\n      type: 'database'\n    }\n  });\n}\n\nreturn items;"
+      },
+      "name": "Prepare Health Checks",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "name": "Split Into Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.url}}",
+        "options": {
+          "timeout": "={{$json.timeout}}",
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process the HTTP response\nconst response = $input.item.json;\nconst originalData = $input.item.json.originalData;\n\n// Check if the status matches expected status\nconst isHealthy = response.statusCode === originalData.expectedStatus;\n\n// Get timestamp for the check\nconst timestamp = new Date().toISOString();\n\nreturn {\n  hospitalId: originalData.hospitalId,\n  serviceName: originalData.name,\n  serviceType: originalData.type,\n  url: originalData.url,\n  isHealthy,\n  statusCode: response.statusCode,\n  responseTime: response.responseTime,\n  timestamp,\n  details: isHealthy ? 'Service is healthy' : `Service returned unexpected status code: ${response.statusCode}`\n};"
+      },
+      "name": "Process Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.isHealthy}}",
+              "value2": true,
+              "operation": "notEqual"
+            }
+          ]
+        }
+      },
+      "name": "Is Unhealthy?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.CENTRAL_MONITORING_URL}}/api/alerts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {},
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "alertType",
+              "value": "SYSTEM_HEALTH"
+            },
+            {
+              "name": "severity",
+              "value": "HIGH"
+            },
+            {
+              "name": "hospitalId",
+              "value": "={{$json.hospitalId}}"
+            },
+            {
+              "name": "serviceName",
+              "value": "={{$json.serviceName}}"
+            },
+            {
+              "name": "serviceType",
+              "value": "={{$json.serviceType}}"
+            },
+            {
+              "name": "message",
+              "value": "=Service {{$json.serviceName}} is unhealthy at hospital {{$json.hospitalId}}. Status code: {{$json.statusCode}}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{$json.timestamp}}"
+            },
+            {
+              "name": "details",
+              "value": "={{JSON.stringify({\n                url: $json.url,\n                statusCode: $json.statusCode,\n                responseTime: $json.responseTime,\n                details: $json.details\n              })}}"
+            }
+          ]
+        }
+      },
+      "name": "Send Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.HOSPITAL_API_URL}}/api/v1/audit/log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {},
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "eventType",
+              "value": "SYSTEM_HEALTH_CHECK"
+            },
+            {
+              "name": "resourceType",
+              "value": "={{$json.serviceType}}"
+            },
+            {
+              "name": "resourceId",
+              "value": "={{$json.serviceName}}"
+            },
+            {
+              "name": "action",
+              "value": "={{$json.isHealthy ? 'HEALTHY' : 'UNHEALTHY'}}"
+            },
+            {
+              "name": "hospitalId",
+              "value": "={{$json.hospitalId}}"
+            },
+            {
+              "name": "details",
+              "value": "={{JSON.stringify({\n                url: $json.url,\n                statusCode: $json.statusCode,\n                responseTime: $json.responseTime,\n                timestamp: $json.timestamp,\n                details: $json.details\n              })}}"
+            }
+          ]
+        }
+      },
+      "name": "Log Health Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "operation": "aggregate",
+        "aggregate": {
+          "fields": {
+            "fields": [
+              {
+                "field": "hospitalId"
+              },
+              {
+                "field": "isHealthy"
+              }
+            ]
+          }
+        },
+        "options": {}
+      },
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process aggregated results\nconst data = $input.item.json.aggregations;\n\n// Group by hospital\nconst hospitals = {};\nlet totalServices = 0;\nlet healthyServices = 0;\n\nfor (const item of data) {\n  const hospitalId = item.hospitalId;\n  const isHealthy = item.isHealthy;\n  \n  if (!hospitals[hospitalId]) {\n    hospitals[hospitalId] = {\n      total: 0,\n      healthy: 0\n    };\n  }\n  \n  hospitals[hospitalId].total++;\n  totalServices++;\n  \n  if (isHealthy) {\n    hospitals[hospitalId].healthy++;\n    healthyServices++;\n  }\n}\n\n// Calculate overall health percentage\nconst overallHealthPercentage = (healthyServices / totalServices) * 100;\n\n// Format results for dashboard\nconst hospitalResults = Object.keys(hospitals).map(hospitalId => {\n  const hospital = hospitals[hospitalId];\n  const healthPercentage = (hospital.healthy / hospital.total) * 100;\n  \n  return {\n    hospitalId,\n    totalServices: hospital.total,\n    healthyServices: hospital.healthy,\n    healthPercentage: healthPercentage.toFixed(2) + '%',\n    status: healthPercentage === 100 ? 'HEALTHY' : 'DEGRADED'\n  };\n});\n\nreturn {\n  timestamp: new Date().toISOString(),\n  overallHealth: {\n    totalServices,\n    healthyServices,\n    healthPercentage: overallHealthPercentage.toFixed(2) + '%',\n    status: overallHealthPercentage === 100 ? 'HEALTHY' : 'DEGRADED'\n  },\n  hospitalResults\n};"
+      },
+      "name": "Generate Dashboard Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.DASHBOARD_API_URL}}/api/health-metrics",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {},
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "data",
+              "value": "={{JSON.stringify($json)}}"
+            }
+          ]
+        }
+      },
+      "name": "Update Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [2050, 300]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Prepare Health Checks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Health Checks": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Batches": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Process Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Results": {
+      "main": [
+        [
+          {
+            "node": "Is Unhealthy?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Unhealthy?": {
+      "main": [
+        [
+          {
+            "node": "Send Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Alert": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Health Check": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "Generate Dashboard Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Dashboard Data": {
+      "main": [
+        [
+          {
+            "node": "Update Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

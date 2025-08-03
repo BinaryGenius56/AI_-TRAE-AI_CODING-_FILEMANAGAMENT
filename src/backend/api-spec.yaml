@@ -1,0 +1,1487 @@
+openapi: 3.0.0
+info:
+  title: Hospital Network Management System API
+  description: |
+    API specification for the Hospital Network Management System,
+    enabling secure interoperability between hospital systems.
+  version: 1.0.0
+  
+servers:
+  - url: https://api.hospital-network.org/v1
+    description: Production API server
+  - url: https://staging-api.hospital-network.org/v1
+    description: Staging API server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      
+  schemas:
+    Hospital:
+      type: object
+      required:
+        - name
+        - address
+        - contactEmail
+        - contactPhone
+      properties:
+        hospitalId:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+        address:
+          type: string
+        contactEmail:
+          type: string
+          format: email
+        contactPhone:
+          type: string
+        active:
+          type: boolean
+          default: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          
+    Patient:
+      type: object
+      required:
+        - globalId
+        - firstName
+        - lastName
+        - dateOfBirth
+      properties:
+        patientId:
+          type: string
+          format: uuid
+          readOnly: true
+        globalId:
+          type: string
+          description: Unique global identifier for the patient
+        firstName:
+          type: string
+        lastName:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum: [male, female, other, prefer_not_to_say]
+        address:
+          type: string
+        contactPhone:
+          type: string
+        contactEmail:
+          type: string
+          format: email
+        bloodType:
+          type: string
+          enum: [A+, A-, B+, B-, AB+, AB-, O+, O-]
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          
+    PatientConsent:
+      type: object
+      required:
+        - patientId
+        - consentingHospitalId
+        - targetHospitalId
+        - consentType
+        - startDate
+      properties:
+        consentId:
+          type: string
+          format: uuid
+          readOnly: true
+        patientId:
+          type: string
+          format: uuid
+        consentingHospitalId:
+          type: string
+          format: uuid
+        targetHospitalId:
+          type: string
+          format: uuid
+        consentType:
+          type: string
+          enum: [full_access, read_only, specific_data]
+        specificDataTypes:
+          type: array
+          items:
+            type: string
+            enum: [demographics, medications, lab_results, imaging, diagnoses, treatments]
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+        consentVerified:
+          type: boolean
+          default: false
+        verificationMethod:
+          type: string
+          enum: [in_person, digital_signature, two_factor]
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          
+    MedicalRecord:
+      type: object
+      required:
+        - patientId
+        - hospitalId
+        - recordType
+        - recordDate
+        - data
+      properties:
+        recordId:
+          type: string
+          format: uuid
+          readOnly: true
+        patientId:
+          type: string
+          format: uuid
+        hospitalId:
+          type: string
+          format: uuid
+        recordType:
+          type: string
+          enum: [visit, lab_result, prescription, imaging, procedure, diagnosis]
+        recordDate:
+          type: string
+          format: date-time
+        providerId:
+          type: string
+          format: uuid
+          nullable: true
+        diagnosisCodes:
+          type: array
+          items:
+            type: string
+          description: ICD-10 or other standardized diagnosis codes
+        notes:
+          type: string
+        data:
+          type: object
+          description: Flexible data structure based on record type
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          
+    Medication:
+      type: object
+      required:
+        - rxnormCode
+        - name
+        - form
+        - strength
+      properties:
+        medicationId:
+          type: string
+          format: uuid
+          readOnly: true
+        rxnormCode:
+          type: string
+          description: RxNorm standard code
+        snomedCtCode:
+          type: string
+          description: SNOMED CT code if available
+          nullable: true
+        name:
+          type: string
+        form:
+          type: string
+          enum: [tablet, capsule, liquid, injection, patch, inhaler, other]
+        strength:
+          type: string
+        manufacturer:
+          type: string
+          nullable: true
+        barcodeGs1:
+          type: string
+          description: GS1 standard barcode
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          
+    PatientMedication:
+      type: object
+      required:
+        - patientId
+        - medicationId
+        - hospitalId
+        - prescriberId
+        - dosage
+        - frequency
+        - route
+        - prescribedDate
+        - startDate
+      properties:
+        patientMedicationId:
+          type: string
+          format: uuid
+          readOnly: true
+        patientId:
+          type: string
+          format: uuid
+        medicationId:
+          type: string
+          format: uuid
+        hospitalId:
+          type: string
+          format: uuid
+        prescriberId:
+          type: string
+          format: uuid
+        dosage:
+          type: string
+        frequency:
+          type: string
+        route:
+          type: string
+          enum: [oral, intravenous, intramuscular, subcutaneous, topical, inhalation, other]
+        prescribedDate:
+          type: string
+          format: date
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        instructions:
+          type: string
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+          default: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          
+    Document:
+      type: object
+      required:
+        - patientId
+        - hospitalId
+        - documentType
+        - title
+        - filePath
+        - fileSize
+        - mimeType
+        - md5Checksum
+        - uploaderId
+      properties:
+        documentId:
+          type: string
+          format: uuid
+          readOnly: true
+        patientId:
+          type: string
+          format: uuid
+        hospitalId:
+          type: string
+          format: uuid
+        documentType:
+          type: string
+          enum: [mri, ct_scan, x_ray, lab_report, discharge_summary, referral, prescription, other]
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        filePath:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+        mimeType:
+          type: string
+        md5Checksum:
+          type: string
+        uploadDate:
+          type: string
+          format: date-time
+          readOnly: true
+        documentDate:
+          type: string
+          format: date-time
+          nullable: true
+        uploaderId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          default: 1
+        tags:
+          type: array
+          items:
+            type: string
+        aiProcessed:
+          type: boolean
+          default: false
+        aiExtractedData:
+          type: object
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          
+    AccessToken:
+      type: object
+      required:
+        - patientId
+        - requestingHospitalId
+        - targetHospitalId
+        - consentId
+        - permissions
+        - expiresAt
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+          readOnly: true
+        token:
+          type: string
+          readOnly: true
+        patientId:
+          type: string
+          format: uuid
+        requestingHospitalId:
+          type: string
+          format: uuid
+        targetHospitalId:
+          type: string
+          format: uuid
+        consentId:
+          type: string
+          format: uuid
+        permissions:
+          type: array
+          items:
+            type: string
+            enum: [read_demographics, read_medications, read_lab_results, read_imaging, read_diagnoses, read_treatments, write_medications, write_lab_results, write_imaging, write_diagnoses, write_treatments]
+        issuedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        expiresAt:
+          type: string
+          format: date-time
+        revoked:
+          type: boolean
+          default: false
+          readOnly: true
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /hospitals:
+    get:
+      summary: List all hospitals in the network
+      operationId: listHospitals
+      parameters:
+        - name: active
+          in: query
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: A list of hospitals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Hospital'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Register a new hospital
+      operationId: createHospital
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Hospital'
+      responses:
+        '201':
+          description: Hospital created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hospital'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+  /hospitals/{hospitalId}:
+    get:
+      summary: Get hospital details
+      operationId: getHospital
+      parameters:
+        - name: hospitalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Hospital details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hospital'
+        '404':
+          description: Hospital not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      summary: Update hospital details
+      operationId: updateHospital
+      parameters:
+        - name: hospitalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Hospital'
+      responses:
+        '200':
+          description: Hospital updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hospital'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Hospital not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+  /patients:
+    post:
+      summary: Register a new patient
+      operationId: createPatient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Patient'
+      responses:
+        '201':
+          description: Patient created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: Search for patients
+      operationId: searchPatients
+      parameters:
+        - name: globalId
+          in: query
+          schema:
+            type: string
+        - name: firstName
+          in: query
+          schema:
+            type: string
+        - name: lastName
+          in: query
+          schema:
+            type: string
+        - name: dateOfBirth
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: A list of patients
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Patient'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+  /patients/{patientId}:
+    get:
+      summary: Get patient details
+      operationId: getPatient
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Patient details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        '404':
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      summary: Update patient details
+      operationId: updatePatient
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Patient'
+      responses:
+        '200':
+          description: Patient updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+  /patients/{patientId}/consents:
+    post:
+      summary: Create a new consent record
+      operationId: createConsent
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientConsent'
+      responses:
+        '201':
+          description: Consent created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientConsent'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List patient consents
+      operationId: listConsents
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: active
+          in: query
+          schema:
+            type: boolean
+        - name: targetHospitalId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: A list of consents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PatientConsent'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '404':
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+  /patients/{patientId}/medical-records:
+    post:
+      summary: Create a new medical record
+      operationId: createMedicalRecord
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicalRecord'
+      responses:
+        '201':
+          description: Medical record created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalRecord'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List patient medical records
+      operationId: listMedicalRecords
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: recordType
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: hospitalId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: A list of medical records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MedicalRecord'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '404':
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+  /patients/{patientId}/medications:
+    post:
+      summary: Add a medication to patient's record
+      operationId: addPatientMedication
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientMedication'
+      responses:
+        '201':
+          description: Medication added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientMedication'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Patient or medication not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List patient medications
+      operationId: listPatientMedications
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: active
+          in: query
+          schema:
+            type: boolean
+        - name: hospitalId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: A list of patient medications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PatientMedication'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '404':
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+  /patients/{patientId}/documents:
+    post:
+      summary: Upload a document for a patient
+      operationId: uploadDocument
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - documentType
+                - title
+              properties:
+                file:
+                  type: string
+                  format: binary
+                documentType:
+                  type: string
+                  enum: [mri, ct_scan, x_ray, lab_report, discharge_summary, referral, prescription, other]
+                title:
+                  type: string
+                description:
+                  type: string
+                documentDate:
+                  type: string
+                  format: date-time
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Document uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List patient documents
+      operationId: listDocuments
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: documentType
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: hospitalId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: tags
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: A list of documents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '404':
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+  /patients/{patientId}/access-tokens:
+    post:
+      summary: Create an access token for cross-hospital access
+      operationId: createAccessToken
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessToken'
+      responses:
+        '201':
+          description: Access token created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessToken'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Patient or consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List patient access tokens
+      operationId: listAccessTokens
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: active
+          in: query
+          schema:
+            type: boolean
+            default: true
+        - name: targetHospitalId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: A list of access tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AccessToken'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '404':
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+  /access-tokens/{tokenId}/revoke:
+    post:
+      summary: Revoke an access token
+      operationId: revokeAccessToken
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Token revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessToken'
+        '404':
+          description: Token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+  /medications:
+    post:
+      summary: Create a new medication
+      operationId: createMedication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Medication'
+      responses:
+        '201':
+          description: Medication created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medication'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: Search medications
+      operationId: searchMedications
+      parameters:
+        - name: rxnormCode
+          in: query
+          schema:
+            type: string
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: barcodeGs1
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: A list of medications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Medication'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+  /medications/barcode/{barcodeGs1}:
+    get:
+      summary: Get medication by barcode
+      operationId: getMedicationByBarcode
+      parameters:
+        - name: barcodeGs1
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Medication details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medication'
+        '404':
+          description: Medication not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+  /documents/{documentId}/process:
+    post:
+      summary: Process a document with AI for data extraction
+      operationId: processDocument
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Document processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
